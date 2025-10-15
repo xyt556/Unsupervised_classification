@@ -939,7 +939,73 @@ def main():
     
     # 侧边栏 - 参数设置
     st.sidebar.header("📋 参数设置")
-    
+
+    # 侧边栏 - 参数设置
+    st.sidebar.header("📋 参数设置")
+
+    # ========== 数据源选择 ==========
+    st.sidebar.markdown("### 📂 数据源")
+
+    data_source = st.sidebar.radio(
+        "选择数据来源",
+        options=["📁 上传本地文件", "🎯 使用示例数据"],
+        label_visibility="collapsed"
+    )
+
+    uploaded_file = None
+
+    if data_source == "📁 上传本地文件":
+        uploaded_file = st.sidebar.file_uploader(
+            "选择遥感影像文件",
+            type=['tif', 'tiff'],
+            help="支持多波段 GeoTIFF 格式的遥感影像"
+        )
+
+        if uploaded_file is not None:
+            st.sidebar.success(f"✓ 已上传: {uploaded_file.name}")
+            st.sidebar.info(f"文件大小: {uploaded_file.size / (1024 * 1024):.2f} MB")
+        else:
+            st.sidebar.warning("请上传遥感影像文件")
+
+    else:  # 使用示例数据
+        st.sidebar.info("""
+        📊 **示例数据说明**
+
+        - 影像尺寸: 300×300 像素
+        - 波段数: 6 个多光谱波段
+        - 包含地物类型:
+          - 💧 水体
+          - 🌲 植被
+          - 🏙️ 城镇
+          - 🏜️ 裸地
+          - 🌾 耕地
+
+        适合快速测试分类功能！
+        """)
+
+        if 'sample_file_loaded' not in st.session_state:
+            st.session_state.sample_file_loaded = False
+
+        if st.sidebar.button("🎯 加载示例数据", use_container_width=True, type="primary"):
+            with st.spinner("正在生成示例遥感影像..."):
+                try:
+                    sample_path = generate_sample_data()
+                    uploaded_file = create_sample_file_object(sample_path)
+                    st.session_state.sample_file_loaded = True
+                    st.sidebar.success("✓ 示例数据已加载！可以开始分类了")
+                except Exception as e:
+                    st.sidebar.error(f"生成示例数据失败: {str(e)}")
+
+        # 如果已经加载过示例数据
+        if st.session_state.sample_file_loaded and uploaded_file is None:
+            sample_path = generate_sample_data()
+            uploaded_file = create_sample_file_object(sample_path)
+
+    st.sidebar.markdown("---")
+
+    # 分类方法选择（保持原有代码）
+    methods = list_classification_methods()
+
     # 文件上传
     uploaded_file = st.sidebar.file_uploader(
         "上传 遥感影像影像文件",
