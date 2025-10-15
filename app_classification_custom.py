@@ -26,58 +26,76 @@ import json
 # ==================== 中文字体配置 ====================
 
 def configure_chinese_fonts():
-    """配置matplotlib中文字体"""
+    """配置matplotlib中文字体 - 修复版"""
     import platform
-    
+    import matplotlib.font_manager as fm
+
     system = platform.system()
+
+    # 更全面的中文字体列表
     chinese_fonts = []
-    
     if system == 'Windows':
-        chinese_fonts = ['SimHei','Microsoft YaHei', 'SimSun', 'KaiTi', 'FangSong']
-    elif system == 'Darwin':
-        chinese_fonts = ['PingFang SC', 'Heiti SC', 'STHeiti', 'Arial Unicode MS']
-    else:
-        chinese_fonts = ['WenQuanYi Micro Hei', 'WenQuanYi Zen Hei', 'Droid Sans Fallback', 'DejaVu Sans']
-    
-    from matplotlib.font_manager import FontManager
-    fm = FontManager()
-    available_fonts = {f.name for f in fm.ttflist}
-    
+        chinese_fonts = ['SimHei', 'Microsoft YaHei', 'SimSun', 'KaiTi', 'FangSong', 'NSimSun', 'YouYuan']
+    elif system == 'Darwin':  # macOS
+        chinese_fonts = ['PingFang SC', 'Heiti SC', 'STHeiti', 'Arial Unicode MS', 'Hiragino Sans GB']
+    else:  # Linux
+        chinese_fonts = ['WenQuanYi Micro Hei', 'WenQuanYi Zen Hei', 'Noto Sans CJK SC',
+                         'Noto Sans CJK TC', 'Droid Sans Fallback', 'DejaVu Sans']
+
+    # 获取所有可用字体
+    available_fonts = set(f.name for f in fm.fontManager.ttflist)
+
+    # 查找第一个可用的中文字体
     selected_font = None
     for font in chinese_fonts:
         if font in available_fonts:
             selected_font = font
             break
-    
+
+    # 如果没找到，尝试通过字体文件路径查找
     if selected_font is None:
-        for font in available_fonts:
-            if any(keyword in font.lower() for keyword in ['chinese', 'cjk', 'han', 'hei', 'song']):
-                selected_font = font
-                break
-    
+        font_paths = []
+        if system == 'Windows':
+            font_paths = [
+                'C:/Windows/Fonts/simhei.ttf',  # 黑体
+                'C:/Windows/Fonts/msyh.ttc',  # 微软雅黑
+                'C:/Windows/Fonts/simsun.ttc',  # 宋体
+            ]
+        elif system == 'Darwin':
+            font_paths = [
+                '/System/Library/Fonts/PingFang.ttc',
+                '/System/Library/Fonts/STHeiti Light.ttc',
+                '/Library/Fonts/Arial Unicode.ttf',
+            ]
+        else:
+            font_paths = [
+                '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+                '/usr/share/fonts/truetype/arphic/uming.ttc',
+                '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
+            ]
+
+        for font_path in font_paths:
+            if os.path.exists(font_path):
+                try:
+                    # 直接添加字体文件
+                    fm.fontManager.addfont(font_path)
+                    prop = fm.FontProperties(fname=font_path)
+                    selected_font = prop.get_name()
+                    break
+                except:
+                    continue
+
+    # 配置matplotlib
     if selected_font:
-        plt.rcParams['font.sans-serif'] = [selected_font]
+        plt.rcParams['font.sans-serif'] = [selected_font, 'DejaVu Sans', 'Arial Unicode MS']
         plt.rcParams['axes.unicode_minus'] = False
+        matplotlib.rcParams['font.family'] = 'sans-serif'
         return True, selected_font
     else:
-        return False, None
-
-CHINESE_SUPPORT, SELECTED_FONT = configure_chinese_fonts()
-
-# 尝试导入依赖
-try:
-    from numba import jit, prange
-    NUMBA_AVAILABLE = True
-except ImportError:
-    NUMBA_AVAILABLE = False
-
-try:
-    import skfuzzy as fuzz
-    FUZZY_AVAILABLE = True
-except ImportError:
-    FUZZY_AVAILABLE = False
-
-warnings.filterwarnings('ignore')
+        # 回退方案
+        plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Arial Unicode MS', 'sans-serif']
+        plt.rcParams['axes.unicode_minus'] = False
+        return False, "系统默认字体"
 
 # ==================== 预定义地物类型模板 ====================
 
