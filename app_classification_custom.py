@@ -37,7 +37,7 @@ def configure_chinese_fonts():
     import os
 
     # ===== 策略1：优先加载项目内置字体（适用于部署环境） =====
-    font_filename = 'SourceHanSansSC-Regular.otf'
+    font_filename = 'SimHei.ttf'
     font_path = os.path.join('fonts', font_filename)
 
     if os.path.exists(font_path):
