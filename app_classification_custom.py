@@ -33,7 +33,7 @@ def configure_chinese_fonts():
     chinese_fonts = []
     
     if system == 'Windows':
-        chinese_fonts = ['Microsoft YaHei', 'SimHei', 'SimSun', 'KaiTi', 'FangSong']
+        chinese_fonts = ['SimHei','Microsoft YaHei', 'SimSun', 'KaiTi', 'FangSong']
     elif system == 'Darwin':
         chinese_fonts = ['PingFang SC', 'Heiti SC', 'STHeiti', 'Arial Unicode MS']
     else:
