@@ -924,6 +924,148 @@ def plot_area_charts_with_custom_names(area_stats):
     
     return fig_pie, fig_bar
 
+
+# ==================== 示例数据生成 ====================
+
+def generate_sample_data():
+    """
+    生成一个模拟的多光谱遥感影像示例
+    模拟 Landsat 风格的 6 波段影像
+    """
+    import numpy as np
+    import rasterio
+    from rasterio.transform import Affine
+    import tempfile
+
+    # 设置影像参数
+    width, height = 300, 300  # 较小尺寸便于快速处理
+    n_bands = 6
+
+    # 创建坐标转换（模拟地理坐标）
+    transform = Affine.translation(116.0, 40.0) * Affine.scale(0.0003, -0.0003)
+
+    # 生成模拟数据
+    np.random.seed(42)
+    bands_data = np.zeros((n_bands, height, width), dtype=np.uint16)
+
+    # 模拟不同地物类型的光谱特征
+    # 创建几个区域
+    y_coords, x_coords = np.ogrid[0:height, 0:width]
+
+    # 区域1：水体（左上角）- 蓝光强，其他弱
+    water_mask = ((x_coords < width // 3) & (y_coords < height // 3))
+
+    # 区域2：植被（右上角）- 近红外强，红光弱
+    vegetation_mask = ((x_coords > 2 * width // 3) & (y_coords < height // 3))
+
+    # 区域3：城镇（左下角）- 各波段中等
+    urban_mask = ((x_coords < width // 3) & (y_coords > 2 * height // 3))
+
+    # 区域4：裸地（右下角）- 红光和近红外都较强
+    barren_mask = ((x_coords > 2 * width // 3) & (y_coords > 2 * height // 3))
+
+    # 区域5：耕地（中间）- 介于植被和裸地之间
+    cropland_mask = ~(water_mask | vegetation_mask | urban_mask | barren_mask)
+
+    # 为每个波段分配特征值
+    for i in range(n_bands):
+        base = np.random.randint(1000, 2000, (height, width))
+
+        # 蓝光波段
+        if i == 0:
+            bands_data[i][water_mask] = np.random.randint(4000, 5000, water_mask.sum())
+            bands_data[i][vegetation_mask] = np.random.randint(800, 1200, vegetation_mask.sum())
+            bands_data[i][urban_mask] = np.random.randint(2000, 2500, urban_mask.sum())
+            bands_data[i][barren_mask] = np.random.randint(1500, 2000, barren_mask.sum())
+            bands_data[i][cropland_mask] = np.random.randint(1200, 1800, cropland_mask.sum())
+
+        # 绿光波段
+        elif i == 1:
+            bands_data[i][water_mask] = np.random.randint(3000, 4000, water_mask.sum())
+            bands_data[i][vegetation_mask] = np.random.randint(1500, 2000, vegetation_mask.sum())
+            bands_data[i][urban_mask] = np.random.randint(2500, 3000, urban_mask.sum())
+            bands_data[i][barren_mask] = np.random.randint(2000, 2500, barren_mask.sum())
+            bands_data[i][cropland_mask] = np.random.randint(1800, 2200, cropland_mask.sum())
+
+        # 红光波段
+        elif i == 2:
+            bands_data[i][water_mask] = np.random.randint(500, 1000, water_mask.sum())
+            bands_data[i][vegetation_mask] = np.random.randint(800, 1200, vegetation_mask.sum())
+            bands_data[i][urban_mask] = np.random.randint(2500, 3000, urban_mask.sum())
+            bands_data[i][barren_mask] = np.random.randint(2500, 3500, barren_mask.sum())
+            bands_data[i][cropland_mask] = np.random.randint(1500, 2000, cropland_mask.sum())
+
+        # 近红外波段
+        elif i == 3:
+            bands_data[i][water_mask] = np.random.randint(200, 500, water_mask.sum())
+            bands_data[i][vegetation_mask] = np.random.randint(4000, 5500, vegetation_mask.sum())
+            bands_data[i][urban_mask] = np.random.randint(2800, 3200, urban_mask.sum())
+            bands_data[i][barren_mask] = np.random.randint(3000, 4000, barren_mask.sum())
+            bands_data[i][cropland_mask] = np.random.randint(3500, 4500, cropland_mask.sum())
+
+        # 短波红外1
+        elif i == 4:
+            bands_data[i][water_mask] = np.random.randint(100, 300, water_mask.sum())
+            bands_data[i][vegetation_mask] = np.random.randint(2000, 3000, vegetation_mask.sum())
+            bands_data[i][urban_mask] = np.random.randint(3000, 3500, urban_mask.sum())
+            bands_data[i][barren_mask] = np.random.randint(3500, 4500, barren_mask.sum())
+            bands_data[i][cropland_mask] = np.random.randint(2500, 3500, cropland_mask.sum())
+
+        # 短波红外2
+        else:
+            bands_data[i][water_mask] = np.random.randint(50, 200, water_mask.sum())
+            bands_data[i][vegetation_mask] = np.random.randint(1000, 1500, vegetation_mask.sum())
+            bands_data[i][urban_mask] = np.random.randint(2500, 3000, urban_mask.sum())
+            bands_data[i][barren_mask] = np.random.randint(3000, 4000, barren_mask.sum())
+            bands_data[i][cropland_mask] = np.random.randint(2000, 2500, cropland_mask.sum())
+
+    # 添加一些噪声使其更真实
+    for i in range(n_bands):
+        noise = np.random.normal(0, 100, (height, width)).astype(np.int16)
+        bands_data[i] = np.clip(bands_data[i].astype(np.int32) + noise, 0, 65535).astype(np.uint16)
+
+    # 创建临时文件
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='_sample.tif')
+    temp_path = temp_file.name
+    temp_file.close()
+
+    # 写入 GeoTIFF
+    with rasterio.open(
+            temp_path,
+            'w',
+            driver='GTiff',
+            height=height,
+            width=width,
+            count=n_bands,
+            dtype=rasterio.uint16,
+            crs='EPSG:4326',
+            transform=transform,
+            compress='lzw'
+    ) as dst:
+        dst.write(bands_data)
+
+    return temp_path
+
+
+def create_sample_file_object(sample_path):
+    """将示例文件转换为类似上传文件的对象"""
+    import io
+
+    class SampleFile:
+        def __init__(self, path):
+            self.name = "示例遥感影像.tif"
+            with open(path, 'rb') as f:
+                self._content = f.read()
+            self.size = len(self._content)
+
+        def getvalue(self):
+            return self._content
+
+        def read(self):
+            return self._content
+
+    return SampleFile(sample_path)
+
 # ==================== Streamlit 主界面 ====================
 
 def main():
@@ -937,9 +1079,6 @@ def main():
     else:
         st.sidebar.warning("⚠️ 未检测到中文字体，图表可能显示异常")
     
-    # 侧边栏 - 参数设置
-    st.sidebar.header("📋 参数设置")
-
     # 侧边栏 - 参数设置
     st.sidebar.header("📋 参数设置")
 
