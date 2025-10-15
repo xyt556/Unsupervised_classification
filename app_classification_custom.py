@@ -510,6 +510,14 @@ def class_editor_ui():
 @st.cache_data
 def list_classification_methods():
     """列出所有可用的分类方法"""
+
+    # 在函数内部检查依赖是否可用
+    try:
+        import skfuzzy as fuzz
+        fuzzy_available = True
+    except ImportError:
+        fuzzy_available = False
+
     methods = {
         'minibatch_kmeans': {
             'name': 'MiniBatch K-Means',
@@ -539,7 +547,7 @@ def list_classification_methods():
             'name': '模糊C均值',
             'desc': '★★★★★ 遥感经典算法，软分类',
             'need_n_clusters': True,
-            'available': FUZZY_AVAILABLE
+            'available': fuzzy_available  # ← 使用局部变量
         },
         'isodata': {
             'name': 'ISODATA',
