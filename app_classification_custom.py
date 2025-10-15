@@ -505,6 +505,69 @@ def class_editor_ui():
             st.success("✓ 设置已应用！图表将自动更新")
             st.rerun()
 
+
+# ==================== 示例数据处理 ====================
+
+def load_sample_data():
+    """
+    从 sample_data 文件夹加载示例遥感影像
+    """
+    import os
+
+    sample_path = os.path.join('sample_data', 'ylq_L8_2024.tif')
+
+    if not os.path.exists(sample_path):
+        raise FileNotFoundError(f"未找到示例数据文件: {sample_path}")
+
+    # 读取文件信息
+    with rasterio.open(sample_path) as src:
+        info = {
+            'width': src.width,
+            'height': src.height,
+            'bands': src.count,
+            'crs': str(src.crs),
+            'dtype': src.dtypes[0],
+            'bounds': src.bounds
+        }
+
+    return sample_path, info
+
+
+def create_sample_file_object(sample_path):
+    """
+    将示例文件转换为类似上传文件的对象
+    """
+    import os
+
+    class SampleFileWrapper:
+        def __init__(self, filepath):
+            self.name = os.path.basename(filepath)
+            self._path = filepath
+
+            # 读取文件内容到内存
+            with open(filepath, 'rb') as f:
+                self._content = f.read()
+
+            self.size = len(self._content)
+
+        def getvalue(self):
+            """返回文件内容（bytes）"""
+            return self._content
+
+        def read(self):
+            """读取文件内容"""
+            return self._content
+
+        def seek(self, pos):
+            """模拟文件指针移动"""
+            pass
+
+        def tell(self):
+            """返回当前文件指针位置"""
+            return 0
+
+    return SampleFileWrapper(sample_path)
+
 # ==================== 核心分类函数 ====================
 
 @st.cache_data
@@ -936,20 +999,127 @@ def main():
         st.sidebar.success(f"✓ 中文字体已配置: {SELECTED_FONT}")
     else:
         st.sidebar.warning("⚠️ 未检测到中文字体，图表可能显示异常")
-    
+
     # 侧边栏 - 参数设置
     st.sidebar.header("📋 参数设置")
 
-    # 文件上传
-    uploaded_file = st.sidebar.file_uploader(
-        "上传 遥感影像影像文件",
-        type=['tif', 'tiff'],
-        help="支持多波段 GeoTIFF 格式的遥感影像"
+    # ========== 初始化 session_state ==========
+    if 'uploaded_file' not in st.session_state:
+        st.session_state.uploaded_file = None
+    if 'sample_file_loaded' not in st.session_state:
+        st.session_state.sample_file_loaded = False
+    if 'sample_file_info' not in st.session_state:
+        st.session_state.sample_file_info = None
+
+    # ========== 数据源选择 ==========
+    st.sidebar.markdown("### 📂 数据源")
+
+    data_source = st.sidebar.radio(
+        "选择数据来源",
+        options=["📁 上传本地文件", "🎯 使用示例数据"],
+        label_visibility="collapsed"
     )
-    
-    if uploaded_file is not None:
-        st.sidebar.success(f"✓ 已上传: {uploaded_file.name}")
-        st.sidebar.info(f"文件大小: {uploaded_file.size / (1024*1024):.2f} MB")
+
+    # 切换数据源时重置状态
+    if 'last_data_source' not in st.session_state:
+        st.session_state.last_data_source = data_source
+    elif st.session_state.last_data_source != data_source:
+        st.session_state.uploaded_file = None
+        st.session_state.sample_file_loaded = False
+        st.session_state.sample_file_info = None
+        st.session_state.last_data_source = data_source
+
+    # ---------- 选项1：上传本地文件 ----------
+    if data_source == "📁 上传本地文件":
+        uploaded_file_temp = st.sidebar.file_uploader(
+            "选择遥感影像文件",
+            type=['tif', 'tiff'],
+            help="支持多波段 GeoTIFF 格式的遥感影像",
+            key="file_uploader"
+        )
+
+        if uploaded_file_temp is not None:
+            st.session_state.uploaded_file = uploaded_file_temp
+            st.session_state.sample_file_loaded = False
+
+            st.sidebar.success(f"✓ 已上传: {uploaded_file_temp.name}")
+            st.sidebar.info(f"📦 文件大小: {uploaded_file_temp.size / (1024 * 1024):.2f} MB")
+        elif st.session_state.uploaded_file is None:
+            st.sidebar.warning("⚠️ 请上传遥感影像文件")
+
+    # ---------- 选项2：使用示例数据 ----------
+    else:
+        st.sidebar.info("""
+        📊 **示例数据说明**
+
+        - 📐 影像尺寸: 500×500 像素  
+        - 📡 波段数量: 6 个多光谱波段  
+        - 🗺️ 坐标系统: WGS84  
+        - 🌍 包含地物:
+          - 💧 水体
+          - 🌲 植被  
+          - 🏙️ 城镇
+          - 🏜️ 裸地
+          - 🌾 耕地
+
+        **适合快速体验分类功能！**
+        """)
+
+        # 加载示例数据按钮
+        if st.sidebar.button(
+                "🎯 加载示例数据",
+                use_container_width=True,
+                type="primary",
+                disabled=st.session_state.sample_file_loaded
+        ):
+            try:
+                with st.spinner("正在加载示例遥感影像..."):
+                    # 加载示例数据
+                    sample_path, sample_info = load_sample_data()
+                    sample_file = create_sample_file_object(sample_path)
+
+                    # 保存到 session_state
+                    st.session_state.uploaded_file = sample_file
+                    st.session_state.sample_file_loaded = True
+                    st.session_state.sample_file_info = sample_info
+
+                    st.sidebar.success("✅ 示例数据加载成功！")
+                    st.rerun()
+
+            except FileNotFoundError as e:
+                st.sidebar.error(f"❌ 错误: {str(e)}")
+                st.sidebar.warning("""
+                **解决方法:**
+                1. 确保 `sample_data/sample_landsat.tif` 文件存在
+                2. 检查文件路径是否正确
+                3. 重新生成示例数据文件
+                """)
+            except Exception as e:
+                st.sidebar.error(f"❌ 加载失败: {str(e)}")
+                import traceback
+                with st.sidebar.expander("查看错误详情"):
+                    st.code(traceback.format_exc())
+
+        # 显示已加载的示例数据信息
+        if st.session_state.sample_file_loaded and st.session_state.sample_file_info:
+            info = st.session_state.sample_file_info
+
+            st.sidebar.success("✅ 示例数据已就绪")
+
+            with st.sidebar.expander("📋 数据详细信息", expanded=True):
+                st.markdown(f"""
+                - **文件名**: {st.session_state.uploaded_file.name}
+                - **影像尺寸**: {info['width']} × {info['height']} 像素
+                - **波段数量**: {info['bands']} 个
+                - **坐标系**: {info['crs']}
+                - **数据类型**: {info['dtype']}
+                - **文件大小**: {st.session_state.uploaded_file.size / (1024 * 1024):.2f} MB
+                """)
+
+    # 获取当前的文件对象
+    uploaded_file = st.session_state.uploaded_file
+
+    st.sidebar.markdown("---")
     
     # 分类方法选择
     methods = list_classification_methods()
@@ -1003,9 +1173,9 @@ def main():
         type="primary",
         use_container_width=True
     )
-    
+
     # 主界面
-    if uploaded_file is None:
+    if st.session_state.uploaded_file is None:
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             st.markdown("""
@@ -1019,9 +1189,15 @@ def main():
                     <li>✅ 交互式可视化分析</li>
                     <li>✅ 一键导出分类结果</li>
                 </ul>
-                <p><strong>快速开始：</strong>在左侧上传 遥感影像遥感影像文件（TIF格式）</p>
+                <p><strong>快速开始：</strong></p>
+                <ol>
+                    <li>📂 在左侧选择数据来源</li>
+                    <li>📁 上传文件 <strong>或</strong> 🎯 加载示例数据</li>
+                    <li>⚙️ 设置分类参数</li>
+                    <li>🚀 点击"开始分类"按钮</li>
+                </ol>
                 <p style='color: #666; font-size: 14px; margin-top: 15px;'>
-                    💡 提示：建议使用包含多个波段的地表反射率影像
+                    💡 <strong>新手提示</strong>：建议先使用<span style='color: #00c853; font-weight: bold;'>示例数据</span>快速体验系统功能
                 </p>
             </div>
             """, unsafe_allow_html=True)
@@ -1078,14 +1254,20 @@ def main():
                 """)
     
     # 运行分类
-    if run_button and uploaded_file is not None:
+    # 运行分类
+    if run_button:
+        if st.session_state.uploaded_file is None:
+            st.error("❌ 请先上传遥感影像文件或加载示例数据！")
+            st.info("👈 请在左侧选择数据来源")
+            st.stop()
+
         st.markdown("---")
         st.header("🔄 正在处理")
-        
+
         start_time = time.time()
-        
+
         result = run_classification(
-            uploaded_file,
+            st.session_state.uploaded_file,  # ← 使用 session_state
             selected_method,
             n_clusters,
             post_process,
