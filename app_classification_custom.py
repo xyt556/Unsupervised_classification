@@ -23,6 +23,72 @@ import plotly.express as px
 from PIL import Image
 import json
 
+import requests
+import tempfile
+import os
+
+
+def download_chinese_font():
+    """下载中文字体文件（如果在部署环境中）"""
+    font_urls = [
+        "https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf",
+        "https://github.com/Peltoche/lxgw-wenkai-webfont/raw/main/fonts/LXGWWenKai-Regular.ttf",
+    ]
+
+    for url in font_urls:
+        try:
+            response = requests.get(url, timeout=10)
+            if response.status_code == 200:
+                font_file = tempfile.NamedTemporaryFile(delete=False, suffix='.ttf')
+                font_file.write(response.content)
+                font_file.close()
+                return font_file.name
+        except:
+            continue
+    return None
+
+
+def setup_fonts():
+    """设置字体 - 综合方案"""
+    import matplotlib.font_manager as fm
+    import matplotlib.pyplot as plt
+
+    # 方法1: 尝试使用系统字体
+    chinese_support, font_name = configure_chinese_fonts()
+
+    if not chinese_support:
+        # 方法2: 尝试下载字体
+        font_path = download_chinese_font()
+        if font_path and os.path.exists(font_path):
+            try:
+                fm.fontManager.addfont(font_path)
+                prop = fm.FontProperties(fname=font_path)
+                font_name = prop.get_name()
+                plt.rcParams['font.sans-serif'] = [font_name] + plt.rcParams['font.sans-serif']
+                chinese_support = True
+            except:
+                pass
+
+    # 最终回退方案
+    if not chinese_support:
+        st.warning("⚠️ 未找到中文字体，图表中的中文可能显示为方块")
+        # 设置一些通用的Unicode字体
+        plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Arial Unicode MS', 'sans-serif']
+
+    plt.rcParams['axes.unicode_minus'] = False
+    return chinese_support, font_name
+
+
+# 在页面配置后立即调用字体设置
+st.set_page_config(
+    page_title="遥感影像非监督分类系统",
+    page_icon="🛰️",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# 设置字体
+CHINESE_SUPPORT, SELECTED_FONT = setup_fonts()
 # ==================== 中文字体配置 ====================
 
 def configure_chinese_fonts():
